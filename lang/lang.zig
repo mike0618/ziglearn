@@ -134,3 +134,47 @@ test "multi defer" {
     }
     try expect(x == 4.5);
 }
+// Errors
+// An error set is like an enum, each err is a value. There are no exceptions in Zig
+const FileOpenError = error{
+    AccessDenied,
+    OutOfMemory,
+    FileNotFound,
+};
+// Error sets coerce to their supersets
+const AllocationError = error{OutOfMemory};
+test "coerce error from a subset to a superset" {
+    const err: FileOpenError = AllocationError.OutOfMemory;
+    try expect(err == FileOpenError.OutOfMemory);
+}
+// use ! to combine err type with another type
+// catch used to provide a fallback value, could be noreturn
+test "error union" {
+    const maybe_error: AllocationError!u16 = 10;
+    const no_error = maybe_error catch 0;
+
+    try expect(@TypeOf(no_error) == u16);
+    try expect(no_error == 10);
+}
+// Payload copturing: func often return err unions. |err| receives the value of the error.
+fn failingFunction() error{Oops}!void {
+    return error.Oops;
+}
+test "returning an error" {
+    failingFunction() catch |err| {
+        try expect(err == error.Oops);
+        return;
+    };
+}
+// try x; is a shortcut for x catch |err| return err
+fn failFn() error{Oops}!i32 {
+    try failingFunction();
+    return 12;
+}
+test "try" {
+    const v: i32 = failFn() catch |err| {
+        try expect(err == error.Oops);
+        return;
+    };
+    try expect(v == 12); // is never reached
+}
