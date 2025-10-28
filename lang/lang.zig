@@ -116,7 +116,7 @@ test "function recursion" {
 }
 
 // Defer - to execute a statement upon exiting the current block
-// useful to unsure that resources are cleaned up, add next to the statement that allcates the resource.
+// useful to unsure that resources are cleaned up, add next to the statement that allocates the resource.
 test "defer" {
     var x: i16 = 5;
     {
@@ -145,6 +145,7 @@ const FileOpenError = error{
 const AllocationError = error{OutOfMemory};
 test "coerce error from a subset to a superset" {
     const err: FileOpenError = AllocationError.OutOfMemory;
+    try expect(err == AllocationError.OutOfMemory);
     try expect(err == FileOpenError.OutOfMemory);
 }
 // use ! to combine err type with another type
@@ -156,7 +157,7 @@ test "error union" {
     try expect(@TypeOf(no_error) == u16);
     try expect(no_error == 10);
 }
-// Payload copturing: func often return err unions. |err| receives the value of the error.
+// Payload capturing: func often return err unions. |err| receives the value of the error.
 fn failingFunction() error{Oops}!void {
     return error.Oops;
 }
@@ -177,4 +178,82 @@ test "try" {
         return;
     };
     try expect(v == 12); // is never reached
+}
+// errdefer works like defer, exec on error inside of the block
+var problems: u32 = 98;
+fn failFnCounter() error{Oops}!void {
+    errdefer problems += 1;
+    try failingFunction();
+}
+test "errdefer" {
+    failFnCounter() catch |err| {
+        try expect(err == error.Oops);
+        try expect(problems == 99);
+        return;
+    };
+}
+// error unions return from a fn can have their own err sets
+// inferred by not having an explicit err set
+// with all possible errors that fn can return
+fn createFile() !void {
+    return error.AccessDenied;
+}
+test "inferred error set" {
+    // type coercion successfully takes place
+    const x: error{AccessDenied}!void = createFile();
+    // Zig does not let us ignore err unions via _ = x;
+    // way to unwrap it:
+    _ = x catch {};
+}
+const A = error{ NotDir, PathNotFound };
+const B = error{ OutOfMemory, PathNotFound };
+const C = A || B; // merging of err sets
+const D: anyerror = A.NotDir; // global error set can have an error from eny set coerced to it. Avoid it.
+//
+// Switch - works as statement and an expression.
+// types of all branches must coerce to the type which is being switched upon.
+// All possible vals must have an associated branch - vals cannot be left out.
+// Cases cannot fal through to other branches.
+test "switch statement" {
+    var x: i8 = 10;
+    switch (x) {
+        -1...1 => {
+            x = -x;
+        },
+        10, 100 => {
+            x = @divExact(x, 10); // consideration when dividing signed ints
+        },
+        else => {}, // required for exhaustiveness, like case _ in python
+    }
+    try expect(x == 1);
+}
+//former as switch expression
+test "switch expression" {
+    var x: i8 = 10;
+    x = switch (x) {
+        -1...1 => -x,
+        10, 100 => @divExact(x, 10),
+        else => x,
+    };
+    try expect(x == 1);
+}
+
+// Runtime Safety
+// To find problems during execution. Can be left on, or off.
+// Detectable illegal behavior.
+test "out of bounds" { // protection from out of bounds
+    const a = [3]u8{ 1, 2, 3 };
+    var index: u8 = 5;
+    // const b = a[index];
+    // _ = b;
+    _ = a;
+    index = index;
+}
+test "out of bounds, no safety" {
+    @setRuntimeSafety(false);
+    const a = [3]u8{ 1, 2, 3 };
+    var index: u8 = 5;
+    const b = a[index];
+    _ = b;
+    index = index;
 }
