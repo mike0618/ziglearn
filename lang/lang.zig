@@ -276,3 +276,54 @@ test "unreachable switch" {
     try expect(asciiToUpper('a') == 'A');
     try expect(asciiToUpper('A') == 'A');
 }
+//
+// Pointers
+// cannot have 0 or null val. Syntax *T, where T is the child type.
+// referencing: &var, dereferencing: var.*
+fn increment(num: *u8) void {
+    num.* += 1;
+}
+test "pointers" {
+    var x: u8 = 1;
+    increment(&x);
+    try expect(x == 2);
+}
+test "naughty pointer" {
+    var x: u16 = 5;
+    x -= 5;
+    // var y: *u8 = @ptrFromInt(x);
+    // y = y;
+}
+// referencing a const var will yield a const ptr
+test "const pointer" {
+    const x: u8 = 1;
+    var y = &x; // *T coerces to *const T
+    // y.* += 1;
+    y = &x;
+}
+// usize and isize - unsigned and signed ints which are the same size as ptrs
+test "usize" {
+    try expect(@sizeOf(usize) == @sizeOf(*u8));
+    try expect(@sizeOf(isize) == @sizeOf(*i8));
+}
+// Many-Item Pointers - to keep track of buffers which don't have compile-time lengths.
+// Syntax: [*]T, not dereferenceable, but Indexable: ptr[0]
+// Support Anithmetic: ptr + 1. Item size must be known. Coerces from an array ptr.
+// Can be const as Single-Item ptrs
+fn doubleAllManypointer(buffer: [*]u8, byte_count: usize) void {
+    var i: usize = 0;
+    while (i < byte_count) : (i += 1) buffer[i] *= 2;
+}
+test "many-item pointers" {
+    var buffer: [100]u8 = [_]u8{1} ** 100;
+    const buffer_ptr: *[100]u8 = &buffer; // single-item ptr to an array
+
+    const buffer_many_ptr: [*]u8 = buffer_ptr; // single-item ptr to arr coerces no many-item ptr of bytes
+    doubleAllManypointer(buffer_many_ptr, buffer.len);
+    for (buffer) |byte| try expect(byte == 2);
+
+    const first_elem_ptr: *u8 = &buffer_many_ptr[0];
+    const first_elem_ptr_2: *u8 = @ptrCast(buffer_many_ptr); // conv to single-item ptr (only if len > 0)
+    try expect(first_elem_ptr == first_elem_ptr_2);
+}
+//
