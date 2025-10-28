@@ -326,4 +326,20 @@ test "many-item pointers" {
     const first_elem_ptr_2: *u8 = @ptrCast(buffer_many_ptr); // conv to single-item ptr (only if len > 0)
     try expect(first_elem_ptr == first_elem_ptr_2);
 }
-//
+// Slices - like many-item ptrs with len usize. Syntax []T. Easier to use safely, they store the valid len of the buffer within.
+// "fat pointres" - double the size of ptr. For loops work with slices.
+// x[n..m] to creat a slice from an array. n - included, m - excluded (like in Python)
+fn total(values: []const u8) usize {
+    var sum: usize = 0;
+    for (values) |v| sum += v;
+    return sum;
+}
+test "slices" {
+    const array = [_]u8{ 1, 2, 3, 4, 5 };
+    const slice = array[0..3]; // const because fn total doesn't write into it
+    try expect(total(slice) == 6);
+    // when n and m known at compile time, slicing produces a ptr to an array. *[N]T coerce to a slice []T
+    try expect(@TypeOf(slice) == *const [3]u8);
+    const slice_to_end = array[0..];
+    _ = slice_to_end;
+}
