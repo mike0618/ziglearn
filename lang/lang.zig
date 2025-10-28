@@ -257,3 +257,22 @@ test "out of bounds, no safety" {
     _ = b;
     index = index;
 }
+// Unreachable - statement will not be reached, for advantage of optimizer.
+// noreturn, compatible with all other types
+test "unreachable" {
+    const x: i32 = 1;
+    // const y: u32 = if (x == 2) 5 else unreachable;
+    // _ = y;
+    _ = x;
+}
+fn asciiToUpper(x: u8) u8 {
+    return switch (x) {
+        'a'...'z' => x + 'A' - 'a',
+        'A'...'Z' => x,
+        else => unreachable,
+    };
+}
+test "unreachable switch" {
+    try expect(asciiToUpper('a') == 'A');
+    try expect(asciiToUpper('A') == 'A');
+}
