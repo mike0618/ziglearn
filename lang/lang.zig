@@ -23,7 +23,9 @@ pub fn main() !void {
     std.debug.print("{d},{d}\n", .{ arr1.len, arr2.len }); // print the size of arrays
 
 }
+//
 // If statement
+//
 test "if statement" {
     const a = true;
     var x: u16 = 0;
@@ -41,7 +43,9 @@ test "if statement expression" {
     x += if (a) 1 else 2;
     try expect(x == 1);
 }
+//
 // While loops
+//
 test "while" {
     var i: u8 = 2;
     while (i < 100) {
@@ -78,7 +82,9 @@ test "while with break" {
     }
     try expect(sum == 1);
 }
+//
 // For loops
+//
 test "for" {
     // char literals are equivalent to int literals
     const string = [_]u8{ 'a', 'b', 'c' };
@@ -95,7 +101,9 @@ test "for" {
     for (string) |_| {}
 }
 
+//
 //Functions
+//
 // All arguments are IMMUTABLE. Var - snake_case, Fn - camelCase
 // use _ to ignore vars inside functions
 fn addFive(x: u32) u32 {
@@ -115,7 +123,9 @@ test "function recursion" {
     try expect(x == 55);
 }
 
+//
 // Defer - to execute a statement upon exiting the current block
+//
 // useful to unsure that resources are cleaned up, add next to the statement that allocates the resource.
 test "defer" {
     var x: i16 = 5;
@@ -134,7 +144,9 @@ test "multi defer" {
     }
     try expect(x == 4.5);
 }
+//
 // Errors
+//
 // An error set is like an enum, each err is a value. There are no exceptions in Zig
 const FileOpenError = error{
     AccessDenied,
@@ -157,7 +169,9 @@ test "error union" {
     try expect(@TypeOf(no_error) == u16);
     try expect(no_error == 10);
 }
+//
 // Payload capturing: func often return err unions. |err| receives the value of the error.
+//
 fn failingFunction() error{Oops}!void {
     return error.Oops;
 }
@@ -211,6 +225,7 @@ const C = A || B; // merging of err sets
 const D: anyerror = A.NotDir; // global error set can have an error from eny set coerced to it. Avoid it.
 //
 // Switch - works as statement and an expression.
+//
 // types of all branches must coerce to the type which is being switched upon.
 // All possible vals must have an associated branch - vals cannot be left out.
 // Cases cannot fal through to other branches.
@@ -238,7 +253,9 @@ test "switch expression" {
     try expect(x == 1);
 }
 
+//
 // Runtime Safety
+//
 // To find problems during execution. Can be left on, or off.
 // Detectable illegal behavior.
 test "out of bounds" { // protection from out of bounds
@@ -278,6 +295,7 @@ test "unreachable switch" {
 }
 //
 // Pointers
+//
 // cannot have 0 or null val. Syntax *T, where T is the child type.
 // referencing: &var, dereferencing: var.*
 fn increment(num: *u8) void {
@@ -345,6 +363,7 @@ test "slices" {
 }
 //
 // Enums - types with a restricted set of names
+//
 const Direction = enum { north, south, east, west };
 const Value = enum(u2) { zero, one, two }; // with an int tag
 test "enum ordinal value" {
@@ -391,6 +410,7 @@ test "hmm" {
 }
 //
 // Structs - common composite data type, fixed set of named fields. T{} syntax
+//
 const Vec3 = struct { x: f32, y: f32, z: f32 };
 test "struct usage" {
     const my_vector = Vec3{
@@ -434,6 +454,7 @@ test "automatic dereference" {
 }
 //
 // Unions - type to store only one val of many possible typed fields. Cannot be used to reinterpret mem.
+//
 const Result = union {
     int: i64,
     float: f64,
@@ -458,3 +479,38 @@ test "switch on tagged union" {
 }
 const Tagged2 = union(enum) { a: u8, b: f32, c: bool }; // tag type can be inferred
 const Tagged3 = union(enum) { a: u8, b: f32, c: bool, none }; // void type can be omitted
+//
+// Integer Rules
+//
+// Dec, Hex, Octal, and Bin int literals
+const dec_int: i32 = 98222;
+const hex_int: u8 = 0xff;
+const hex_int2: u8 = 0xFF;
+const oct_int: u16 = 0o755;
+const bin_int: u8 = 0b11110000;
+// use underscore as a visual separator
+const one_billion: u64 = 1_000_000_000;
+const bin_mask: u64 = 0b1_1111_0000;
+const permissions: u64 = 0o7_5_5;
+const big_addr: u64 = 0xFF80_0000_0000_0000;
+// int Widening. Int can coerce to int of another type
+test "int widening" {
+    const a: u8 = 250;
+    const b: u16 = a;
+    const c: u32 = b;
+    try expect(c == a);
+}
+// explicit int type conversion
+test "@intCast" {
+    const x: u64 = 200; // if not out of range
+    // const x: u64 = 300; // will cause error
+    const y = @as(u8, @intCast(x));
+    try expect(@TypeOf(y) == u8);
+}
+// int by default are not allowed to overflow.
+// but Zig provides overflow operators
+test "well defined overflow" {
+    var a: u8 = 255;
+    a +%= 1;
+    try expect(a == 0);
+}
