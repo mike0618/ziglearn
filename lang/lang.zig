@@ -343,6 +343,7 @@ test "slices" {
     const slice_to_end = array[0..];
     _ = slice_to_end;
 }
+//
 // Enums - types with a restricted set of names
 const Direction = enum { north, south, east, west };
 const Value = enum(u2) { zero, one, two }; // with an int tag
@@ -388,4 +389,46 @@ test "hmm" {
     Mode.count += 1;
     try expect(Mode.count == 1);
 }
-// Structs
+//
+// Structs - common composite data type, fixed set of named fields. T{} syntax
+const Vec3 = struct { x: f32, y: f32, z: f32 };
+test "struct usage" {
+    const my_vector = Vec3{
+        .x = 0,
+        .y = 100,
+        .z = 50,
+    };
+    _ = my_vector;
+}
+test "missing struct field" { // will cause error
+    // const my_vector = Vec3{
+    //     .x = 0,
+    //     .y = 50, // .z is missing
+    // };
+    // _ = my_vector;
+}
+// fields with given defaults
+const Vec4 = struct { x: f32 = 0, y: f32 = 0, z: f32 = 0, w: f32 = 0 };
+test "struct defaults" {
+    const my_vector = Vec4{
+        .x = 25,
+        .y = -50,
+    };
+    _ = my_vector;
+}
+// Struct with fn and vars
+const Stuff = struct {
+    x: i32,
+    y: i32,
+    fn swap(self: *Stuff) void { // pointer to a struct
+        const tmp = self.x; // dereferencing is done automatically
+        self.x = self.y;
+        self.y = tmp;
+    }
+};
+test "automatic dereference" {
+    var thing = Stuff{ .x = 10, .y = 20 };
+    thing.swap();
+    try expect(thing.x == 20);
+    try expect(thing.y == 10);
+}
