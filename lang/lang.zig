@@ -581,3 +581,59 @@ test "while loop expression" {
     try expect(rangeHasNumber(0, 10, 3));
     // try expect(rangeHasNumber(0, 10, 33)); // this will cause error
 }
+//
+// Optionals - ?T syntax, to store null, or a val of type T.
+//
+test "optional" {
+    var found_index: ?usize = null;
+    const data = [_]i32{ 1, 2, 3, 4, 5, 6, 7, 8, 12 };
+    for (data, 0..) |v, i| {
+        if (v == 10) found_index = i;
+    }
+    try expect(found_index == null);
+}
+// orelse expression when optional is null. Unwraps the optional to its child type.
+test "orelse" {
+    const a: ?f32 = null;
+    const fallback_value: f32 = 0;
+    const b = a orelse fallback_value;
+    try expect(b == 0);
+    try expect(@TypeOf(b) == f32);
+}
+// .? is as shorthand for orelse unreachable. When it's impossible for an val to be null, unwrap null is illegal.
+test "orelse unreachable" {
+    const a: ?f32 = 5;
+    const b = a orelse unreachable;
+    const c = a.?;
+    try expect(b == c);
+    try expect(@TypeOf(c) == f32);
+}
+// if expressions and while loops support taking optional vals as conditions
+test "if optional payload capture" {
+    const a: ?i32 = 5;
+    if (a != null) {
+        const value = a.?;
+        _ = value;
+    }
+    var b: ?i32 = 5;
+    if (b) |*value| {
+        value.* += 1; // use pointer to modify captured value stored in b
+    }
+    try expect(b.? == 6);
+}
+// while
+var number_left: u32 = 4;
+fn eventuallyNullSequence() ?u32 {
+    if (number_left == 0) return null;
+    number_left -= 1;
+    return number_left;
+}
+test "while null capture" {
+    var sum: u32 = 0;
+    while (eventuallyNullSequence()) |value| {
+        sum += value;
+    }
+    try expect(sum == 6);
+}
+// optional ptrs and slices types don't take extra mem.
+// null ptrs must be unwrapped to a non-optional befor dereferencing
