@@ -432,3 +432,29 @@ test "automatic dereference" {
     try expect(thing.x == 20);
     try expect(thing.y == 10);
 }
+//
+// Unions - type to store only one val of many possible typed fields. Cannot be used to reinterpret mem.
+const Result = union {
+    int: i64,
+    float: f64,
+    bool: bool,
+};
+test "simple union" {
+    var result = Result{ .int = 1234 };
+    // result.float = 12.34; // this will cause error, accessing not active field
+    result.int = 4321;
+}
+// Tagged unions - use Enum to detect which field is active.
+const Tag = enum { a, b, c };
+const Tagged = union(Tag) { a: u8, b: f32, c: bool };
+test "switch on tagged union" {
+    var value = Tagged{ .b = 1.5 };
+    switch (value) { // payload capture to switch on the Tag type
+        .a => |*byte| byte.* += 1,
+        .b => |*float| float.* *= 2, // pointer capture to mutate values
+        .c => |*b| b.* = !b.*,
+    }
+    try expect(value.b == 3);
+}
+const Tagged2 = union(enum) { a: u8, b: f32, c: bool }; // tag type can be inferred
+const Tagged3 = union(enum) { a: u8, b: f32, c: bool, none }; // void type can be omitted
