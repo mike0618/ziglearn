@@ -544,3 +544,40 @@ test "int-float conv" {
     const c = @as(i32, @intFromFloat(b));
     try expect(c == a);
 }
+//
+// Labelled Blocks - used to yeild values. {} is a val of type void.
+//
+test "labelled blocks" {
+    const count = blk: {
+        var sum: u32 = 0;
+        var i: u32 = 0;
+        while (i < 10) : (i += 1) sum += i;
+        break :blk sum;
+    };
+    try expect(count == 45);
+    try expect(@TypeOf(count) == u32);
+}
+// Labelled Loops - to break and continue to outer loops.
+test "nested continue" {
+    var count: usize = 0;
+    outer: for ([_]i32{ 1, 2, 3, 4, 5, 6, 7, 8 }) |_| {
+        for ([_]i32{ 1, 2, 3, 4, 5 }) |_| {
+            count += 1;
+            continue :outer;
+        }
+    }
+    try expect(count == 8);
+}
+// Loops as Expressions - like return, break accepts value to yeild from a loop. Else can be used if not break
+fn rangeHasNumber(begin: usize, end: usize, number: usize) bool {
+    var i = begin;
+    return while (i < end) : (i += 1) {
+        if (i == number) {
+            break true;
+        }
+    } else false;
+}
+test "while loop expression" {
+    try expect(rangeHasNumber(0, 10, 3));
+    // try expect(rangeHasNumber(0, 10, 33)); // this will cause error
+}
