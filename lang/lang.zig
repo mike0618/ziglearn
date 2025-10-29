@@ -637,3 +637,121 @@ test "while null capture" {
 }
 // optional ptrs and slices types don't take extra mem.
 // null ptrs must be unwrapped to a non-optional befor dereferencing
+//
+// Comptime - forcibly execute a block of code at compile time
+//
+fn fibonacci2(n: u16) u16 {
+    if (n == 0 or n == 1) return n;
+    return fibonacci2(n - 1) + fibonacci2(n - 2);
+}
+test "comptime blocks" {
+    const x = comptime fibonacci2(10);
+    const y = comptime blk: {
+        break :blk fibonacci2(10);
+    };
+    // x and y are equivalent
+    try expect(y == 55);
+    try expect(x == 55);
+}
+// comptime_int cannot be used at runtime! they have arbitrary precision. coerce to any int/float that can fit them.
+test "comptime_int" {
+    const a = 12;
+    const b = a + 10;
+    const c: u4 = a;
+    const d: f32 = b;
+    try expect(c == 12);
+    try expect(d == 22);
+}
+// comptime_float internally f128, cannot be coerced to int.
+// Types are values of type. Available at compile time.
+test "branching on types" {
+    const a = 5;
+    const b: if (a < 10) f32 else i32 = 5;
+    try expect(@TypeOf(b) == f32);
+}
+// comptime tagged fn parameters. must be known at compile time. fn returns a type is PascalCase.
+fn Matrix(
+    comptime T: type,
+    comptime width: comptime_int,
+    comptime height: comptime_int,
+) type {
+    return [height][width]T;
+}
+test "returning a type" {
+    try expect(Matrix(f32, 4, 4) == [4][4]f32);
+}
+// built-in @typeInfo takes type, returns a tagged union, which also can be found in std.builtin.Type
+fn addSmallInts(comptime T: type, a: T, b: T) T {
+    return switch (@typeInfo(T)) {
+        .comptime_int => a + b,
+        .int => |info| if (info.bits <= 16) a + b else @compileError("ints too large"),
+        else => @compileError("only ints accepted"),
+    };
+}
+test "cypeinfo switch" {
+    const x = addSmallInts(u16, 20, 30);
+    try expect(@TypeOf(x) == u16);
+    try expect(x == 50);
+}
+// @Type to create a type from a @typeInfo. unimplemented for enums, unions, fn, and structs.
+// .{} anonimous struct, T in T{} can be inferred. Compile error if Int tag isn't set.
+fn GetBiggerInt(comptime T: type) type {
+    return @Type(.{
+        .int = .{
+            .bits = @typeInfo(T).int.bits + 1,
+            .signedness = @typeInfo(T).int.signedness,
+        },
+    });
+}
+test "@Type" {
+    try expect(GetBiggerInt(u8) == u9);
+    try expect(GetBiggerInt(i31) == i32);
+}
+// ret struct type to make generic data structure. @This gets the type of innermost struct, union, enum.
+// std.mem.eql compares two slices.
+fn Vec(
+    comptime count: comptime_int,
+    comptime T: type,
+) type {
+    return struct {
+        data: [count]T,
+        const Self = @This();
+        fn abs(self: Self) Self {
+            var tmp = Self{ .data = undefined };
+            for (self.data, 0..) |elem, i| {
+                tmp.data[i] = if (elem < 0) -elem else elem;
+            }
+            return tmp;
+        }
+        fn init(data: [count]T) Self {
+            return Self{ .data = data };
+        }
+    };
+}
+const eql = @import("std").mem.eql;
+test "generic vector" {
+    const x = Vec(4, f32).init([_]f32{ 10, -10, -5, 0 });
+    const y = x.abs();
+    try expect(eql(f32, &y.data, &[_]f32{ 10, 10, 5, 0 }));
+}
+// anytype for inferred fn parameters. Use @TypeOf on the parameter to define return type
+fn plusOne(x: anytype) @TypeOf(x) {
+    return x + 1;
+}
+test "inferred function parameter" {
+    try expect(plusOne(@as(u32, 1)) == 2);
+}
+// ++ and ** for concat and repeating arrays and slices. Do not work at runtime.
+test "++" {
+    const x: [4]u8 = undefined;
+    const y = x[0..];
+    const a: [6]u8 = undefined;
+    const b = a[0..];
+    const new = y ++ b;
+    try expect(new.len == 10);
+}
+test "**" {
+    const pattern = [_]u8{ 0xCC, 0xAA };
+    const memory = pattern ** 3;
+    try expect(eql(u8, &memory, &[_]u8{ 0xCC, 0xAA, 0xCC, 0xAA, 0xCC, 0xAA }));
+}
