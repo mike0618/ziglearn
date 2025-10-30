@@ -345,7 +345,7 @@ test "many-item pointers" {
     try expect(first_elem_ptr == first_elem_ptr_2);
 }
 // Slices - like many-item ptrs with len usize. Syntax []T. Easier to use safely, they store the valid len of the buffer within.
-// "fat pointres" - double the size of ptr. For loops work with slices.
+// "fat pointers" - double the size of ptr. For loops work with slices.
 // x[n..m] to creat a slice from an array. n - included, m - excluded (like in Python)
 fn total(values: []const u8) usize {
     var sum: usize = 0;
@@ -918,4 +918,44 @@ test "tuple" {
     }
     try expect(values.len == 6);
     try expect(values.@"3"[0] == 'h');
+}
+//
+// Sentinel Termination - arrays, slices, many pointers may be terminated by a val of their child type.
+// Syntax: [N:t]T, [:t]T, [*:t]T, t is a val of child type T
+//
+test "sentinel termination" {
+    const terminated = [3:0]u8{ 3, 2, 1 };
+    try expect(terminated.len == 3);
+    // last element followed by a 0 byte
+    try expect(@as(*const [4]u8, @ptrCast(&terminated))[3] == 0); // unsafe type conversion
+}
+// string literals *const [N:0]u8, where N is the len of the str.
+// Coerce to sentinel term slices, many ptrs. UTF-8 encoded
+test "string literal" {
+    try expect(@TypeOf("hello") == *const [5:0]u8);
+}
+// [*:0]u8 and [*:0]const u8 perfectly model C's strings
+test "C string" {
+    const c_string: [*:0]const u8 = "hello";
+    var array: [5]u8 = undefined;
+    var i: usize = 0;
+    while (c_string[i] != 0) : (i += 1) {
+        array[i] = c_string[i];
+    }
+}
+// sentinel terminated types coerce to their non-sentinel-terminated counterparts
+test "coercion" {
+    const a: [*:0]u8 = undefined;
+    const b: [*]u8 = a;
+    const c: [5:0]u8 = undefined;
+    const d: [5]u8 = c;
+    const e: [:0]f32 = undefined;
+    const f: []f32 = e;
+    _ = .{ b, d, f }; // ignore unused
+}
+// sentinel terminated slicing: x[n..m:t], t - terminator value. Assertion that the mem is terminated where it should be.
+test "sentinel terminated slicing" {
+    var x = [_:0]u8{255} ** 3;
+    const y = x[0..3 :0];
+    _ = y;
 }
