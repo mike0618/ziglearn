@@ -694,7 +694,7 @@ test "cypeinfo switch" {
     try expect(x == 50);
 }
 // @Type to create a type from a @typeInfo. unimplemented for enums, unions, fn, and structs.
-// .{} anonimous struct, T in T{} can be inferred. Compile error if Int tag isn't set.
+// .{} anonymous struct, T in T{} can be inferred. Compile error if Int tag isn't set.
 fn GetBiggerInt(comptime T: type) type {
     return @Type(.{
         .int = .{
@@ -839,4 +839,83 @@ test "for with pointer capture" {
     var data = [_]u8{ 1, 2, 3 };
     for (&data) |*byte| byte.* += 1;
     try expect(eql(u8, &data, &[_]u8{ 2, 3, 4 }));
+}
+//
+// Inline Loops - allow some things to happen at compile time.
+// But using these for performance is inadvisable unless explicitly tested, that it faster.
+//
+test "inline for" {
+    const types = [_]type{ i32, f32, u8, bool };
+    var sum: usize = 0;
+    inline for (types) |T| sum += @sizeOf(T);
+    try expect(sum == 10);
+}
+//
+// Opaque - type with unknown (albeit non-zero) size ond alignment. Cannot be stored directly.
+// Used to maintain type safety with pointers to types that we don't have information about.
+//
+// const Window = opaque {};
+// const Button = opaque {};
+//
+// extern fn show_window(*Window) callconv(.c) void;
+
+// test "opaque" { // will cause error
+//     const main_window: *Window = undefined;
+//     show_window(main_window);
+//     const ok_button: *Button = undefined;
+//     show_window(ok_button);
+// }
+// Opaque types may have declarations in their definitions like structs, enums and unions
+const Window = opaque {
+    fn show(self: *Window) void {
+        show_window(self);
+    }
+};
+extern fn show_window(*Window) callconv(.c) void;
+// test "opaque with declarations" {
+//     var main_window: *Window = undefined;
+//     main_window.show();
+// }
+//
+// Anonymous Structs - omitted struct type, may coerce to other struct types.
+//
+test "anonymous struct literal" {
+    const Point = struct { x: i32, y: i32 };
+    const pt: Point = .{ .x = 13, .y = 67 };
+    try expect(pt.x == 13);
+    try expect(pt.y == 67);
+}
+// Completely anonymous, no coercion no another type
+test "fully anonymous struct" {
+    try dump(.{
+        .int = @as(u32, 1234),
+        .float = @as(f64, 12.34),
+        .b = true,
+        .s = "hi",
+    });
+}
+fn dump(args: anytype) !void {
+    try expect(args.int == 1234);
+    try expect(args.float == 12.34);
+    try expect(args.b);
+    try expect(args.s[0] == 'h');
+    try expect(args.s[1] == 'i');
+}
+// Anon structs are referred as tuples with array properties. Iterated, indexed, used with ++ and **, have len.
+// Have numbered fields accessed with syntax: @"0"
+test "tuple" {
+    const values = .{
+        @as(u32, 1234),
+        @as(f64, 12.34),
+        true,
+        "hi",
+    } ++ .{false} ** 2;
+    try expect(values[0] == 1234);
+    try expect(values[4] == false);
+    inline for (values, 0..) |v, i| {
+        if (i != 2) continue;
+        try expect(v);
+    }
+    try expect(values.len == 6);
+    try expect(values.@"3"[0] == 'h');
 }
