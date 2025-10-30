@@ -959,3 +959,38 @@ test "sentinel terminated slicing" {
     const y = x[0..3 :0];
     _ = y;
 }
+//
+// Vectors - for SIMD. not vectors in math sense. Created with @Type or std.meta.Vector
+// Can have child types: booleans, ints, floats and ptrs. And their operators. std.meta.eql to check vectors equality.
+//
+const meta = @import("std").meta;
+test "vector add and index" {
+    const x: @Vector(4, f32) = .{ 1, -10, 20, -1 };
+    const y: @Vector(4, f32) = .{ 2, 10, 0, 1 };
+    const z = x + y; // sum of vectors
+    try expect(meta.eql(z, @Vector(4, f32){ 3, 0, 20, 0 }));
+    try expect(x[0] == 1); // indexing
+}
+// @splat - construct a vector where all vals are the same.
+test "vector * scalar" {
+    const x: @Vector(3, f32) = .{ 12.5, 37.5, 2.5 };
+    const y = x * @as(@Vector(3, f32), @splat(2));
+    try expect(meta.eql(y, @Vector(3, f32){ 25, 75, 5 }));
+}
+// vectors don't have len but may be looped over.
+test "vector looping" {
+    const x = @Vector(4, u8){ 255, 0, 255, 0 };
+    const sum = blk: {
+        var tmp: u10 = 0;
+        var i: u8 = 0;
+        while (i < 4) : (i += 1) tmp += x[i];
+        break :blk tmp;
+    };
+    try expect(sum == 510);
+}
+// vectors coerce to their respective arrays.
+const arr: [4]f32 = @Vector(4, f32){ 1, 2, 3, 4 };
+//
+// Imports - @import takes in a file, gives a struct based on it. All declarations labelled as pub end up in this struct.
+// @import("std") special case, gives access to the std lib. Other @import will take in a file path or pkg name.
+//
