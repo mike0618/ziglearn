@@ -43,6 +43,7 @@ test "allocator create/destroy" {
 // GeneralPurposeAllocator - prevents double-free, use-after-free, detects leaks.
 // Safety can be turned off via its conf struct
 // Designed for safety over performance, but still much faster than page_allocator.
+// std.heap.c_allocator - for high performance, but low safety. Requires linking Libc with -lc.
 test "GPA" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const alloc = gpa.allocator();
@@ -54,4 +55,73 @@ test "GPA" {
     const bytes = try alloc.alloc(u8, 100);
     defer alloc.free(bytes);
 }
-// std.heap.c_allocator - for high performance, but low safety. Requires linking Libc with -lc.
+//
+// std.ArrayList(T) - commonly used buffer that can change size. Similar to C++ std::vector<T> and Rust Vec<T>.
+//
+const eql = std.mem.eql;
+const ArrayList = std.ArrayList;
+const test_alloc = std.testing.allocator; // works only in tests to detect mem leaks
+test "ArrayList" {
+    var list: ArrayList(u8) = .empty;
+    defer list.deinit(test_alloc);
+    try list.append(test_alloc, 'H');
+    try list.append(test_alloc, 'e');
+    try list.append(test_alloc, 'l');
+    try list.append(test_alloc, 'l');
+    try list.append(test_alloc, 'o');
+    try list.appendSlice(test_alloc, " World!");
+    try expect(eql(u8, list.items, "Hello World!"));
+}
+//
+// Filesystem
+//
+test "createFile, write, seekTo, read" {
+    const file = try std.fs.cwd().createFile(
+        "junk_file.txt",
+        .{ .read = true },
+    );
+    defer file.close();
+    try file.writeAll("Hello File!");
+    var buffer: [100]u8 = undefined;
+    try file.seekTo(0); // go back to start of the file
+    const bytes_read = try file.readAll(&buffer);
+    try expect(eql(u8, buffer[0..bytes_read], "Hello File!"));
+}
+// std.fs.openFileAbsolute fn also exist.
+//
+// .stat() to get file info, contains fields .inode .mode
+test "file stat" {
+    const file = try std.fs.cwd().createFile(
+        "junk_file2.txt",
+        .{ .read = true },
+    );
+    defer file.close();
+    const stat = try file.stat();
+    try expect(stat.size == 0);
+    try expect(stat.kind == .file); // when enum type is known from context -> .file instead of Kind.file
+    try expect(stat.ctime <= std.time.nanoTimestamp());
+    try expect(stat.mtime <= std.time.nanoTimestamp());
+    try expect(stat.atime <= std.time.nanoTimestamp());
+}
+// Make dirs, iterate over them, delete dirs. Iterator usage.
+test "Make dir" {
+    const dir: []const u8 = "test-tmp";
+    try std.fs.cwd().makeDir(dir);
+    var iter_dir = try std.fs.cwd().openDir(
+        dir,
+        .{ .iterate = true },
+    );
+    defer {
+        iter_dir.close();
+        std.fs.cwd().deleteTree(dir) catch unreachable;
+    }
+    _ = try iter_dir.createFile("x", .{});
+    _ = try iter_dir.createFile("y", .{});
+    _ = try iter_dir.createFile("z", .{});
+    var file_count: usize = 0;
+    var iter = iter_dir.iterate(); // iterator
+    while (try iter.next()) |entry| {
+        if (entry.kind == .file) file_count += 1;
+    }
+    try expect(file_count == 3);
+}
