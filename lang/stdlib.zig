@@ -125,3 +125,114 @@ test "Make dir" {
     }
     try expect(file_count == 3);
 }
+//
+// New: std.fs.File.stdout().writer(&out_buf); std.fs.File.stdout().reader(&in_buf);
+// Old: std.io.Writer and std.io.Reader - standard IO ways. std.ArrayList(u8) has a writer method.
+//
+// const ArrayList = std.ArrayList; // already defined above
+// const test_alloc = std.testing.allocator;
+test "io writer usage" {
+    var list: ArrayList(u8) = .empty;
+    defer list.deinit(test_alloc);
+    const bytes_written = try list.writer(test_alloc).write("Hello World!");
+    try expect(bytes_written == 12);
+    try expect(eql(u8, list.items, "Hello World!"));
+}
+// removed in new version! readAllAlloc - max alloc size, if the file is larger -> error.StreamTooLong.
+// new: std.Io.Reader / Writer.Allocating and streamRemaining
+test "io reader usage" {
+    const message = "Hello File";
+    const file = try std.fs.cwd().createFile(
+        "junk_file3.txt",
+        .{ .read = true },
+    );
+    defer file.close();
+    try file.writeAll(message);
+    try file.seekTo(0);
+    var buffer: [4096]u8 = undefined;
+    var reader = file.reader(&buffer);
+    var aw: std.Io.Writer.Allocating = .init(test_alloc);
+    defer aw.deinit();
+    _ = try reader.interface.streamRemaining(&aw.writer); // read all -> into aw
+    const contents = try aw.toOwnedSlice(); // take ownership
+    defer test_alloc.free(contents);
+    try expect(eql(u8, contents, message));
+}
+// removed! std.io.getStdIn() - read until next line (for user input)
+// new: std.fs.File.stdin().reader(&buffer) with interface
+fn nextLine(reader: *std.Io.Reader) !?[]const u8 {
+    // returns a slice into the reader's internal buffer
+    const s = reader.takeDelimiterExclusive('\n') catch |e| switch (e) {
+        error.EndOfStream => return null, // EOD no more data
+        else => return e,
+    };
+    // trim windows-only carriage return char
+    if (@import("builtin").os.tag == .windows) {
+        return std.mem.trimRight(u8, s, "\r");
+    } else {
+        return s;
+    }
+}
+// test "read until next line" {
+pub fn userInput() !void {
+    // stdout writer buffered
+    var out_buf: [512]u8 = undefined;
+    var outw = std.fs.File.stdout().writer(&out_buf);
+    const out = &outw.interface;
+    // stdout reader buffered
+    var in_buf: [512]u8 = undefined;
+    var inr = std.fs.File.stdin().reader(&in_buf);
+    const in = &inr.interface;
+
+    try out.print("Enter your name: ", .{});
+    try out.flush();
+
+    if (try nextLine(in)) |input| {
+        try out.print("Your name is: \"{s}\"\n", .{input});
+        try out.flush();
+    }
+}
+// custom writer that behaves like new std.fs.File.stdout().writer(&buffer) instead of old std.io.Writer
+const MyByteList = struct {
+    data: [100]u8 = undefined,
+    items: []u8 = &[_]u8{},
+    const Writer = struct {
+        context: *MyByteList,
+        pub fn write(self: *const Writer, data: []const u8) !usize {
+            return self.context.appendWrite(data);
+        }
+        pub fn writeAll(self: *const Writer, data: []const u8) !void {
+            var written: usize = 0;
+            while (written < data.len) {
+                written += try self.write(data[written..]);
+            }
+        }
+    };
+    fn appendWrite(
+        self: *MyByteList,
+        data: []const u8,
+    ) error{EndOfBuffer}!usize {
+        if (self.items.len + data.len > self.data.len) {
+            return error.EndOfBuffer;
+        }
+        @memcpy(
+            self.data[self.items.len..][0..data.len],
+            data,
+        );
+        self.items = self.data[0 .. self.items.len + data.len];
+        return data.len;
+    }
+    fn writer(self: *MyByteList) Writer {
+        return .{ .context = self };
+    }
+};
+test "custom writer" {
+    var bytes = MyByteList{};
+    _ = try bytes.writer().write("Hello");
+    _ = try bytes.writer().write(" Writer!");
+    try expect(eql(u8, bytes.items, "Hello Writer!"));
+}
+
+pub fn main() !void {
+    try userInput();
+}
