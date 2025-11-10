@@ -352,3 +352,86 @@ test "custom fmt" {
         "Claude Shannon (1916-2001)",
     ));
 }
+//
+// JSON
+//
+// Parse JSON into a Struct
+const Place = struct { lat: f32, long: f32 };
+test "json parse" {
+    const parsed = try std.json.parseFromSlice(
+        Place,
+        test_alloc,
+        \\{ "lat": 40.684540, "long": -74.401422 }
+    ,
+        .{},
+    );
+    defer parsed.deinit();
+    const place = parsed.value;
+    try expect(place.lat == 40.684540);
+    try expect(place.long == -74.401422);
+}
+//using stringify to turn arbitrary data into a string.
+// test "json stringify" {
+//     const x = Place{
+//         .lat = 51.997664,
+//         .long = -0.740687,
+//     };
+//     var buf: [100]u8 = undefined;
+//     var fba = std.heap.FixedBufferAllocator.init(&buf);
+//     const alloc = fba.allocator();
+//     const s = std.json.stringifyAlloc(alloc, x, .{});
+//     defer alloc.free(s);
+//     try expect(eql(u8, s,
+//         \\{"lat":5.199766540527344e1,"long":-7.406870126724243e-1}
+//     ));
+// }
+// JSON parser requires an allocater for JavaScript's string, array, and map types.
+test "json parse with strings" {
+    const User = struct { name: []u8, age: u16 };
+    const parsed = try std.json.parseFromSlice(User, test_alloc,
+        \\{ "name": "Joe", "age": 25 }
+    , .{});
+    defer parsed.deinit();
+    const user = parsed.value;
+    try expect(eql(u8, user.name, "Joe"));
+    try expect(user.age == 25);
+}
+//
+// Random Numbers
+//
+test "random numbers" {
+    var prng = std.Random.DefaultPrng.init(blk: {
+        var seed: u64 = undefined;
+        try std.posix.getrandom(std.mem.asBytes(&seed));
+        break :blk seed;
+    });
+    const rand = prng.random();
+    const a = rand.float(f32);
+    const b = rand.boolean();
+    const c = rand.int(u8);
+    const d = rand.intRangeAtMost(u8, 0, 255);
+    std.debug.print(
+        "{any} {any} {any} {any}\n",
+        .{ a, b, c, d },
+    );
+    // _ = .{ a, b, c, d }; // suppress unused constants
+}
+// cryptographically secure random
+test "crypto random numbers" {
+    const rand = std.crypto.random;
+    const a = rand.float(f32);
+    const b = rand.boolean();
+    const c = rand.int(u8);
+    const d = rand.intRangeAtMost(u8, 0, 255);
+    std.debug.print(
+        "{any} {any} {any} {any}\n",
+        .{ a, b, c, d },
+    );
+    // _ = .{ a, b, c, d }; // suppress unused constants
+}
+// std.crypto includes many cryptographic utilities: AES128, AES256, Diffie-Hellman x25519,
+// Elliptic curve25519, edwards25519, ristretto25519
+// Crypto secure hashing blake2, blake3, Gimli, MD5, sha1, sha2, sha3
+// MAC functions: Ghash, Poly1305
+// Stream ciphers: ChaCha20IETF, ChaCha20With64BitNonce, XChaCha20IETF, Salsa20, XSalsa20)
+//
