@@ -435,3 +435,62 @@ test "crypto random numbers" {
 // MAC functions: Ghash, Poly1305
 // Stream ciphers: ChaCha20IETF, ChaCha20With64BitNonce, XChaCha20IETF, Salsa20, XSalsa20)
 //
+// Threads. std.Thread - easy use of OS threads.
+//
+// Threads should be used with a strategies for thread safety.
+fn ticker(step: u8) void {
+    while (true) {
+        std.Thread.sleep(1 * std.time.ns_per_s);
+        tick += @as(isize, step);
+    }
+}
+var tick: isize = 0;
+test "threading" {
+    const thread = try std.Thread.spawn(.{}, ticker, .{@as(u8, 1)});
+    _ = thread;
+    try expect(tick == 0);
+    // commented out for my learning time saving
+    // std.Thread.sleep(3 * std.time.ns_per_s / 2);
+    // try expect(tick == 1);
+}
+//
+// HashMaps. std.AutoHashMap - easily create a hash map from a key type and a val type. Must be init with an allocator.
+//
+test "hashing" {
+    const Point = struct { x: i32, y: i32 };
+    var map = std.AutoHashMap(u32, Point).init(test_alloc);
+    defer map.deinit();
+    try map.put(1525, .{ .x = 1, .y = -4 });
+    try map.put(1550, .{ .x = 2, .y = -3 });
+    try map.put(1575, .{ .x = 3, .y = -2 });
+    try map.put(1600, .{ .x = 4, .y = -1 });
+    try expect(map.count() == 4);
+    var sum = Point{ .x = 0, .y = 0 };
+    var iter = map.iterator();
+    while (iter.next()) |entry| {
+        sum.x += entry.value_ptr.x;
+        sum.y += entry.value_ptr.y;
+    }
+    try expect(sum.x == 10);
+    try expect(sum.y == -10);
+}
+// .fetchPut var into the hash map, returns a val if it was there for that key.
+test "fetchPut" {
+    var map = std.AutoHashMap(u8, f32).init(test_alloc);
+    defer map.deinit();
+    try map.put(255, 10);
+    const old = try map.fetchPut(255, 100);
+    try expect(old.?.value == 10);
+    try expect(map.get(255).? == 100);
+}
+// std.StringHashMap - strings as keys.
+test "string hashmap" {
+    var map = std.StringHashMap(enum { cool, uncool }).init(test_alloc);
+    defer map.deinit();
+    try map.put("loris", .uncool);
+    try map.put("me", .cool);
+    try expect(map.get("me").? == .cool);
+    try expect(map.get("loris").? == .uncool);
+}
+// AutoHashMap and StringHashMap are just wrappers for std.HashMap
+// std.ArrayHashMap and its wrapper std.AutoArrayHashMap for elements baced by an array.
