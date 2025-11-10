@@ -494,3 +494,38 @@ test "string hashmap" {
 }
 // AutoHashMap and StringHashMap are just wrappers for std.HashMap
 // std.ArrayHashMap and its wrapper std.AutoArrayHashMap for elements baced by an array.
+//
+// Stacks. std.ArrayList has methods to use it as a stack.
+test "stack" {
+    const string = "(()())";
+    var stack: std.ArrayList(usize) = .empty;
+    defer stack.deinit(test_alloc);
+    const Pair = struct { open: usize, close: usize };
+    var pairs: std.ArrayList(Pair) = .empty;
+    defer pairs.deinit(test_alloc);
+    for (string, 0..) |char, i| {
+        if (char == '(') try stack.append(test_alloc, i);
+        if (char == ')') try pairs.append(test_alloc, .{
+            .open = stack.pop().?,
+            .close = i,
+        });
+    }
+    for (pairs.items, 0..) |pair, i| {
+        try expect(std.meta.eql(pair, switch (i) {
+            0 => Pair{ .open = 1, .close = 2 },
+            1 => Pair{ .open = 3, .close = 4 },
+            2 => Pair{ .open = 0, .close = 5 },
+            else => unreachable,
+        }));
+    }
+}
+//
+// Sorting. in-place sorting slices. std.mem.sort: best O(n), average and worst O(n*log(n))
+//
+test "sorting" {
+    var data = [_]u8{ 10, 240, 0, 0, 10, 5 };
+    std.mem.sort(u8, &data, {}, comptime std.sort.asc(u8));
+    try expect(eql(u8, &data, &[_]u8{ 0, 0, 5, 10, 10, 240 }));
+    std.mem.sort(u8, &data, {}, comptime std.sort.desc(u8));
+    try expect(eql(u8, &data, &[_]u8{ 240, 10, 10, 5, 0, 0 }));
+}
