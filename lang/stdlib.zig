@@ -236,3 +236,119 @@ test "custom writer" {
 pub fn main() !void {
     try userInput();
 }
+//
+// Formatting. std.fmt - format data to and from strings
+//
+// const test_alloc = std.testing.allocator; // defined above
+test "fmt" {
+    const string = try std.fmt.allocPrint(
+        test_alloc,
+        "{d} + {d} = {d}", // d - digit
+        .{ 9, 10, 19 },
+    );
+    defer test_alloc.free(string);
+    try expect(eql(u8, string, "9 + 10 = 19"));
+}
+// conveniently used similar print method
+test "print" {
+    var list: std.ArrayList(u8) = .empty;
+    defer list.deinit(test_alloc);
+    try list.writer(test_alloc).print(
+        "{} + {} = {}",
+        .{ 9, 10, 19 },
+    );
+    try expect(eql(u8, list.items, "9 + 10 = 19"));
+}
+// std.debug.print works the same, except it writes to stderr and is protected by a mutex
+test "hello world" {
+    var out_buf: [512]u8 = undefined;
+    var outw = std.fs.File.stdout().writer(&out_buf);
+    const out = &outw.interface;
+    try out.print(
+        "Hello, {s}!\n",
+        .{"World"},
+    );
+    // std.debug.print(
+    //     "Hello, {s}!\n",
+    //     .{"Debug"},
+    // );
+}
+// using {any} for default formatting
+test "aray printing" {
+    const string = try std.fmt.allocPrint(
+        test_alloc,
+        "{any} + {any} = {any}",
+        .{
+            @as([]const u8, &[_]u8{ 1, 4 }),
+            @as([]const u8, &[_]u8{ 2, 5 }),
+            @as([]const u8, &[_]u8{ 3, 9 }),
+        },
+    );
+    defer test_alloc.free(string);
+    try expect(eql(
+        u8,
+        string,
+        "{ 1, 4 } + { 2, 5 } = { 3, 9 }",
+    ));
+}
+// A type with custom formatting. std.fmt can access pub fn. {s} - string format specifier, {} - for array
+const Person = struct {
+    name: []const u8,
+    birth_year: i32,
+    death_year: ?i32,
+    pub fn format(
+        self: Person,
+        // comptime fmt: []const u8, // for 0.15.1
+        // options: std.fmt.FormatOptions, // for 0.15.1
+        writer: anytype,
+    ) !void {
+        // _ = fmt; // for 0.15.1
+        // _ = options; // for 0.15.1
+        try writer.print("{s} ({}-", .{
+            self.name,
+            self.birth_year,
+        });
+        if (self.death_year) |year| {
+            try writer.print("{}", .{year});
+        }
+        try writer.writeAll(")");
+    }
+};
+test "custom fmt" {
+    const john = Person{
+        .name = "John Carmack",
+        .birth_year = 1970,
+        .death_year = null,
+    };
+    const john_string = try std.fmt.allocPrint(
+        test_alloc,
+        "{f}", // for 0.15.1
+        .{john},
+    );
+    defer test_alloc.free(john_string);
+    // std.debug.print(
+    //     "{f}",
+    //     .{john},
+    // );
+    try expect(eql(
+        u8,
+        john_string,
+        "John Carmack (1970-)",
+    ));
+    const claude = Person{
+        .name = "Claude Shannon",
+        .birth_year = 1916,
+        .death_year = 2001,
+    };
+    const claude_string = try std.fmt.allocPrint(
+        test_alloc,
+        "{f}",
+        .{claude},
+    );
+    defer test_alloc.free(claude_string);
+    try expect(eql(
+        u8,
+        claude_string,
+        "Claude Shannon (1916-2001)",
+    ));
+}
