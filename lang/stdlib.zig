@@ -529,3 +529,54 @@ test "sorting" {
     std.mem.sort(u8, &data, {}, comptime std.sort.desc(u8));
     try expect(eql(u8, &data, &[_]u8{ 240, 10, 10, 5, 0, 0 }));
 }
+//
+// Iterators - a struct type with a 'next' fn with an optional, to return null when finished
+//
+// std.mem.SplitIterator, std.mem.TokenIterator
+test "split iterator" {
+    const text = "robust, optimal, reusable, maintainable, ";
+    var iter = std.mem.splitSequence(u8, text, ", "); // for multi-byte separators
+    try expect(eql(u8, iter.next().?, "robust"));
+    try expect(eql(u8, iter.next().?, "optimal"));
+    try expect(eql(u8, iter.next().?, "reusable"));
+    try expect(eql(u8, iter.next().?, "maintainable"));
+    try expect(eql(u8, iter.next().?, ""));
+    try expect(iter.next() == null);
+}
+// !?T with unpack error union before optional.
+test "iterator looping" {
+    var iter = (try std.fs.cwd().openDir(
+        ".",
+        .{ .iterate = true },
+    )).iterate();
+    var file_count: usize = 0;
+    while (try iter.next()) |entry| {
+        if (entry.kind == .file) file_count += 1;
+    }
+    try expect(file_count > 0);
+}
+// Custom iter. iterate over a slice of str, yeilding str which contain a given str
+const ContainsIterator = struct {
+    strings: []const []const u8,
+    needle: []const u8,
+    index: usize = 0,
+    fn next(self: *ContainsIterator) ?[]const u8 {
+        const index = self.index;
+        for (self.strings[index..]) |string| {
+            self.index += 1;
+            if (std.mem.indexOf(u8, string, self.needle)) |_| {
+                return string;
+            }
+        }
+        return null;
+    }
+};
+test "custom iterator" {
+    var iter = ContainsIterator{
+        .strings = &[_][]const u8{ "one", "two", "three" },
+        .needle = "e",
+    };
+    try expect(eql(u8, iter.next().?, "one"));
+    try expect(eql(u8, iter.next().?, "three"));
+    try expect(iter.next() == null);
+}
