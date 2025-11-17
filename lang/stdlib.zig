@@ -580,3 +580,87 @@ test "custom iterator" {
     try expect(eql(u8, iter.next().?, "three"));
     try expect(iter.next() == null);
 }
+//
+// Formatting specifiers
+//
+// Hex formatting for strings and ints: {x} and {X}
+const bufPrint = std.fmt.bufPrint;
+const expectEqualStrings = std.testing.expectEqualStrings;
+test "hex" {
+    var b: [10]u8 = undefined;
+    try expectEqualStrings(
+        "FFFFFFFE",
+        try bufPrint(&b, "{X}", .{4294967294}),
+    );
+    try expectEqualStrings(
+        "fffffffe",
+        try bufPrint(&b, "{x}", .{4294967294}),
+    );
+    try expectEqualStrings(
+        "0xAAAAAAAA",
+        try bufPrint(&b, "0x{X}", .{2863311530}),
+    );
+    try expectEqualStrings(
+        "5a696721",
+        try bufPrint(&b, "{x}", .{"Zig!"}),
+    );
+}
+// {d} decimal formatting for num types
+test "decimal float" {
+    var b: [4]u8 = undefined;
+    try expectEqualStrings("16.5", try bufPrint(&b, "{d}", .{16.5}));
+}
+// {c} formats a byte into an ascii char
+test "ascii fmt" {
+    var b: [1]u8 = undefined;
+    try expectEqualStrings("B", try bufPrint(&b, "{c}", .{66}));
+}
+// output mem size in metric (1000) {B} and power-of-two (1024) {Bi}
+test "B Bi" {
+    var b: [32]u8 = undefined;
+    try expectEqualStrings("1B", try bufPrint(&b, "{B}", .{1}));
+    try expectEqualStrings("1B", try bufPrint(&b, "{Bi}", .{1}));
+    try expectEqualStrings("1.024kB", try bufPrint(&b, "{B}", .{1024}));
+    try expectEqualStrings("1KiB", try bufPrint(&b, "{Bi}", .{1024}));
+    try expectEqualStrings("1.073741824GB", try bufPrint(&b, "{B}", .{1 << 30}));
+    try expectEqualStrings("1GiB", try bufPrint(&b, "{Bi}", .{1 << 30}));
+}
+// {b} and {o} output ints in bin and oct format
+test "binary, octal fmt" {
+    var b: [8]u8 = undefined;
+    try expectEqualStrings("11111110", try bufPrint(&b, "{b}", .{254}));
+    try expectEqualStrings("376", try bufPrint(&b, "{o}", .{254}));
+}
+// {*} pointer formatting, printing the address.
+test "pointer fmt" {
+    var b: [16]u8 = undefined;
+    try expectEqualStrings("u8@deadbeef", try bufPrint(&b, "{*}", .{@as(*u8, @ptrFromInt(0xDEADBEEF))}));
+}
+// {e} outputs floats in sci notation
+test "sci" {
+    var b: [16]u8 = undefined;
+    try expectEqualStrings(try bufPrint(&b, "{e}", .{3.14159}), "3.14159e0");
+}
+// {s} outputs strings
+test "str fmt" {
+    var b: [6]u8 = undefined;
+    const hello: [*:0]const u8 = "hello!";
+    try expectEqualStrings("hello!", try bufPrint(&b, "{s}", .{hello}));
+}
+//
+// Advanced Formatting: {[position][specifier]:[fill][allignment][width].[precision]}
+//
+test "position" {
+    var b: [3]u8 = undefined;
+    try expectEqualStrings("aab", try bufPrint(&b, "{0s}{0s}{1s}", .{ "a", "b" }));
+}
+test "fill, allignment, width" {
+    var b: [6]u8 = undefined;
+    try expectEqualStrings("hi!  ", try bufPrint(&b, "{s: <5}", .{"hi!"}));
+    try expectEqualStrings("_hi!__", try bufPrint(&b, "{s:_^6}", .{"hi!"}));
+    try expectEqualStrings("!hi!", try bufPrint(&b, "{s:!>4}", .{"hi!"}));
+}
+test "precision" {
+    var b: [4]u8 = undefined;
+    try expectEqualStrings("3.14", try bufPrint(&b, "{d:.2}", .{3.14159}));
+}
