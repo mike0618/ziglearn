@@ -661,6 +661,6 @@ test "fill, allignment, width" {
     try expectEqualStrings("!hi!", try bufPrint(&b, "{s:!>4}", .{"hi!"}));
 }
 test "precision" {
-    var b: [4]u8 = undefined;
-    try expectEqualStrings("3.14", try bufPrint(&b, "{d:.2}", .{3.14159}));
+    var b: [9]u8 = undefined;
+    try expectEqualStrings("3.14 is 4", try bufPrint(&b, "{1d:.2} is {0d}", .{ 4, 3.14159 }));
 }
