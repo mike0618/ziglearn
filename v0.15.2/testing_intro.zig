@@ -15,14 +15,14 @@ fn addOne(number: i32) i32 {
     return number + 1;
 }
 
-test "expect this fo fail" {
+test "expect this to fail" {
     try std.testing.expect(false);
 }
 
-test "expect this fo succueed" {
+test "expect this to succeed" {
     try std.testing.expect(true);
 }
 
-test " this will be skipped" {
+test "this will be skipped" {
     return error.SkipZigTest;
 }
